@@ -58,12 +58,21 @@ def action_for_robot(action: np.ndarray) -> dict[str, float]:
     return {name: float(value) for name, value in zip(JOINT_NAMES, action, strict=True)}
 
 
+def default_robot_port() -> str:
+    linux_serial = Path("/dev/serial/by-id/usb-1a86_USB_Single_Serial_58CD177001-if00")
+    if linux_serial.exists():
+        return str(linux_serial)
+    if Path("/dev/ttyACM1").exists():
+        return "/dev/ttyACM1"
+    return "/dev/tty.usbmodem58CD1770011"
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run SmolVLA with one camera on an SO-101 follower.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--robot-port", "--port", dest="robot_port", default="/dev/tty.usbmodem58CD1770011")
+    parser.add_argument("--robot-port", "--port", dest="robot_port", default=default_robot_port())
     parser.add_argument("--robot-id", "--id", dest="robot_id", default="hack_follower")
     parser.add_argument("--camera", default="0", help="Primary/up OpenCV camera index or device path")
     parser.add_argument("--camera-name", default="front", help="LeRobot key for the primary/up camera")
