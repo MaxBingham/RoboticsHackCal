@@ -1,9 +1,8 @@
-"""Run the bundled SmolVLA checkpoint on a physical SO-101 follower.
+"""Run a fine-tuned π0.5 checkpoint on a physical SO-101 follower.
 
-The checkpoint expects two cameras named ``up`` and ``side``. This runner is
-intended as an integration test for the current one-camera hardware: it sends
-the same ``front`` frame to both model inputs. Fine-tune a policy on the real
-camera layout before expecting reliable task performance.
+The checkpoint determines its own camera feature names. With one physical
+camera, the runner duplicates that frame for every model camera input. Fine-tune
+on the actual camera layout before expecting reliable task performance.
 
 Motion is disabled unless ``--enable-motion`` is passed. Even with that flag,
 the operator must type ``MOVE`` after the robot and camera connect.
@@ -21,9 +20,9 @@ import numpy as np
 from lerobot.cameras.opencv import OpenCVCameraConfig
 from lerobot.robots.so_follower import SO101Follower, SO101FollowerConfig
 
-from vla import JOINT_NAMES, REPO, SmolVLA
+from vla import JOINT_NAMES, Pi05VLA
 
-DEFAULT_INSTRUCTION = "pink lego brick into the transparent box"
+DEFAULT_INSTRUCTION = "pick up the object"
 CLAMP_WARNING_PREFIX = "Relative goal position magnitude had to be clamped to be safe."
 
 
@@ -60,7 +59,7 @@ def action_for_robot(action: np.ndarray) -> dict[str, float]:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run SmolVLA with one camera on an SO-101 follower.",
+        description="Run π0.5 with one or two cameras on an SO-101 follower.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--robot-port", "--port", dest="robot_port", default="/dev/tty.usbmodem58CD1770011")
@@ -79,8 +78,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--control-fps", type=float, default=30.0)
     parser.add_argument("--duration", type=float, default=10.0)
     parser.add_argument("--instruction", default=DEFAULT_INSTRUCTION)
-    parser.add_argument("--repo", default=REPO, help="Local path or Hugging Face policy repo")
-    parser.add_argument("--device", default=None, help="cuda, mps, or cpu; auto-detected when omitted")
+    parser.add_argument(
+        "--repo",
+        required=True,
+        help="Fine-tuned six-action SO-101 Hugging Face repo or local checkpoint path",
+    )
+    parser.add_argument("--device", default="cuda", help="Torch inference device")
+    parser.add_argument(
+        "--joint-units",
+        required=True,
+        choices=("normalized", "degrees"),
+        help="Must match the units used to record the checkpoint's training dataset",
+    )
     parser.add_argument(
         "--max-relative-target",
         type=float,
@@ -128,8 +137,9 @@ def run(args: argparse.Namespace) -> None:
     # Load the model before connecting the arm. A first-time download can take
     # several minutes, and there is no reason to leave the motors energized.
     print(f"Loading policy {args.repo!r} ...")
-    vla = SmolVLA(repo=args.repo, device=args.device)
+    vla = Pi05VLA(repo=args.repo, device=args.device)
     print(f"Policy loaded on {vla.device}.")
+    print(f"Checkpoint camera inputs: {vla.camera_keys}")
 
     cameras = {
         args.camera_name: OpenCVCameraConfig(
@@ -153,10 +163,7 @@ def run(args: argparse.Namespace) -> None:
         cameras=cameras,
         max_relative_target=args.max_relative_target,
         disable_torque_on_disconnect=True,
-        # lerobot/svla_so101_pickplace was recorded in RANGE_M100_100: its action
-        # stats saturate at exactly +/-100, which only the normalized path clamps to.
-        # Reading or writing degrees here would rescale every joint but the gripper.
-        use_degrees=False,
+        use_degrees=args.joint_units == "degrees",
     )
     robot = SO101Follower(robot_config)
 
@@ -180,11 +187,10 @@ def run(args: argparse.Namespace) -> None:
         print(f"Instruction: {args.instruction}")
         if args.side_camera is None:
             print(
-                "Compatibility warning: this checkpoint was trained with separate up/side cameras; "
-                "this integration test duplicates the primary frame."
+                f"Using the primary frame for all {len(vla.camera_keys)} checkpoint camera inputs."
             )
         else:
-            print("Using separate primary/up and side camera frames.")
+            print("Using the primary frame for the first checkpoint camera and the side frame for the rest.")
 
         if args.enable_motion:
             confirmation = input(

@@ -1,22 +1,15 @@
-"""Run SmolVLA on a dummy observation. No robot required.
-
-    conda activate lerobot
-    cd ~/so101-vla
-    export PYTORCH_ENABLE_MPS_FALLBACK=1
-    python run_inference.py
-"""
+"""Run a fine-tuned π0.5 SO-101 checkpoint on a dummy observation."""
 
 from __future__ import annotations
 
+import argparse
 import time
 
 import numpy as np
 
-from vla import JOINT_NAMES, SmolVLA
+from vla import JOINT_NAMES, Pi05VLA
 
-# The only task string in the checkpoint's training set. It saw no others,
-# so wording changes do not change behaviour.
-INSTRUCTION = "pink lego brick into the transparent box"
+DEFAULT_INSTRUCTION = "pick up the object"
 
 
 def dummy_image(color=(200, 30, 30)) -> np.ndarray:
@@ -26,14 +19,23 @@ def dummy_image(color=(200, 30, 30)) -> np.ndarray:
 
 
 def dummy_state() -> np.ndarray:
-    # shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll, gripper
-    return np.array([0.0, -90.0, 90.0, 90.0, 0.0, 0.0], dtype=np.float32)
+    # Unit-neutral synthetic values; this only verifies the inference plumbing.
+    return np.zeros(len(JOINT_NAMES), dtype=np.float32)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Smoke-test a fine-tuned π0.5 SO-101 checkpoint")
+    parser.add_argument("--repo", required=True, help="Hugging Face repo or local checkpoint path")
+    parser.add_argument("--instruction", default=DEFAULT_INSTRUCTION)
+    parser.add_argument("--device", default="cuda")
+    return parser
 
 
 def main() -> None:
-    print("loading SmolVLA ...")
+    args = build_parser().parse_args()
+    print(f"loading π0.5 checkpoint {args.repo!r} ...")
     t0 = time.perf_counter()
-    vla = SmolVLA()
+    vla = Pi05VLA(repo=args.repo, device=args.device)
     print(f"loaded on {vla.device} in {time.perf_counter() - t0:.1f}s")
 
     image_up = dummy_image()
@@ -47,7 +49,7 @@ def main() -> None:
         action = vla.predict(
             image=image_up,
             state=state,
-            instruction=INSTRUCTION,
+            instruction=args.instruction,
             image_side=image_side,
         )
         latencies.append(time.perf_counter() - t1)
@@ -63,13 +65,17 @@ def main() -> None:
         "side": image_side,
         **{name: float(value) for name, value in zip(JOINT_NAMES, state)},
     }
-    robot_action = vla.predict_from_robot(robot_obs, INSTRUCTION)
+    robot_action = vla.predict_from_robot(
+        robot_obs,
+        args.instruction,
+        camera_names=("up", "side"),
+    )
     print("\nrobot.send_action payload:")
     for name, value in robot_action.items():
         print(f"  {name}: {value:.4f}")
 
     print("\n=== RESULT ===")
-    print("instruction:", INSTRUCTION)
+    print("instruction:", args.instruction)
     print("joints:", JOINT_NAMES)
     print("action:", actions[0].tolist())
     print(f"first_chunk_latency_s: {latencies[0]:.3f}")
