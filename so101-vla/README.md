@@ -146,3 +146,52 @@ robot.send_action(action)
 Images should be RGB 480×640. Joint keys are `shoulder_pan.pos`,
 `shoulder_lift.pos`, `elbow_flex.pos`, `wrist_flex.pos`, `wrist_roll.pos`, and
 `gripper.pos`—the same names LeRobot uses.
+
+## World Context Pretraining & Transfer Pipeline
+
+### 1. Pretrain Visual Encoder on Industrial Manipulation Videos
+From the `WORLD_CONTEXT_EXPLORER_V3` directory:
+
+```bash
+cd /home/gardlae/WORLD_CONTEXT_EXPLORER_V3
+uv sync --extra torch
+uv run python work/train_worldcontext_encoder.py --epochs 10 --batch-size 8 --device cuda
+```
+This saves pretrained vision backbone weights to `work/checkpoints/worldcontext_backbone_best.pt`.
+
+### 2. Transfer Weights into SmolVLA Policy
+From the `so101-vla` directory:
+
+```bash
+cd /home/gardlae/RoboticsHackCal/so101-vla
+python transfer_weights.py \
+  --worldcontext-checkpoint /home/gardlae/WORLD_CONTEXT_EXPLORER_V3/work/checkpoints/worldcontext_backbone_best.pt \
+  --output-checkpoint outputs/smolvla_worldcontext_init
+```
+
+### 3. Record SO-101 Demonstrations
+Record 40–50 physical teleoperation demonstrations:
+
+```bash
+./record_so101.sh local/so101_pick_place "pick pink lego brick and place in transparent box" 50
+```
+
+### 4. Fine-Tune Policy on CUDA
+Train the policy on your recorded episodes with CUDA acceleration:
+
+```bash
+./train_policy.sh local/so101_pick_place outputs/train/smolvla_so101
+```
+
+### 5. Evaluate on Robot
+Run the motion test:
+
+```bash
+python run_robot.py \
+  --repo=outputs/train/smolvla_so101 \
+  --camera=/dev/video0 \
+  --device=cuda \
+  --instruction="pick pink lego brick and place in transparent box" \
+  --enable-motion
+```
+
