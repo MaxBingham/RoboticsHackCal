@@ -120,19 +120,36 @@ def run_robot_task(params: dict) -> dict[str, str]:
             print("[DRY RUN COMPLETE] Handoff finished.")
             return {"status": "success", "message": "Peanut handoff simulation completed."}
 
-        # Hardware execution via LeRobot / SO-101 runner
-        script_path = Path(__file__).parent.parent / "so101-vla" / "run_robot.py"
+        # lerobot-rollout has no read-only preview mode: it always sends actions
+        # to the motors. Without --enable-motion there is nothing safe to launch.
+        if not (CLI_ARGS and CLI_ARGS.enable_motion):
+            msg = "Motion disabled: rerun voice_robot_agent.py with --enable-motion to execute on hardware."
+            print(f" REFUSED: {msg}")
+            print("=" * 65 + "\n")
+            return {"status": "error", "message": msg}
+
+        # Hardware execution via lerobot-rollout, loading the ACT checkpoint directly
+        # (this task's checkpoint is ACT, not SmolVLA, so it cannot go through
+        # so101-vla/run_robot.py, which hardcodes the SmolVLA policy class).
+        rollout_bin = Path(__file__).parent.parent / "lerobot" / ".venv" / "bin" / "lerobot-rollout"
+        if not rollout_bin.exists():
+            rollout_bin = Path("lerobot-rollout")
+        camera = CLI_ARGS.camera if CLI_ARGS else "/dev/video4"
         cmd = [
-            sys.executable,
-            str(script_path),
-            f"--repo={checkpoint}",
-            f"--camera={CLI_ARGS.camera if CLI_ARGS else '/dev/video4'}",
-            f"--instruction={instruction}",
-            f"--duration={CLI_ARGS.duration if CLI_ARGS else 12.0}",
+            str(rollout_bin),
+            "--strategy.type=base",
+            f"--policy.path={checkpoint}",
+            "--policy.n_action_steps=25",
+            "--robot.type=so101_follower",
+            "--robot.port=/dev/serial/by-id/usb-1a86_USB_Single_Serial_58CD177001-if00",
+            "--robot.id=hack_follower",
+            f"--robot.cameras={{front: {{type: opencv, index_or_path: {camera}, width: 640, height: 480, fps: 30}}}}",
+            "--robot.max_relative_target=5.0",
+            f"--task={instruction}",
             "--device=cuda",
+            f"--duration={CLI_ARGS.duration if CLI_ARGS else 12.0}",
+            "--display_data=false",
         ]
-        if CLI_ARGS and CLI_ARGS.enable_motion:
-            cmd.append("--enable-motion")
 
         print(f"\nLaunching robot subprocess: {' '.join(cmd)}")
         ACTIVE_PROCESS = subprocess.Popen(cmd)

@@ -13,3 +13,6 @@ voice-agent/config.py
 lerobot/outputs/
 *.pt
 *.safetensors
+
+# Local LeRobot checkout (14GB: venv, checkpoints, recordings) — never push
+lerobot/
