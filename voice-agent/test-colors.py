@@ -1,18 +1,34 @@
 import time
+import datetime
+import os
 from elevenlabs.client import ElevenLabs
 from elevenlabs.conversational_ai.conversation import Conversation, ClientTools
 from elevenlabs.conversational_ai.default_audio_interface import DefaultAudioInterface
 from config import ELEVENLABS_API_KEY, AGENT_ID
 
-def pick_object(params):
-    color = params.get("color")
-    print("\n" + "="*40)
-    print(f"  ERKANNT: {color.upper()}")
-    print("="*40 + "\n")
-    return {"status": "success", "message": f"{color} Objekt aufgehoben"}
+OUTPUT_DIR = "grabbed_nuts_log"
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+def grab_nuts(params):
+    count = int(params.get("count"))
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    filename = f"{count}_nuts_{timestamp}.txt"
+    filepath = os.path.join(OUTPUT_DIR, filename)
+
+    with open(filepath, "w") as f:
+        f.write(f"Number of nuts: {count}\nTimestamp: {timestamp}\n")
+
+    print("\n" + "="*50)
+    print(f"  🤖 NUTS GRABBED")
+    print(f"  Count:     {count}")
+    print(f"  Timestamp: {timestamp}")
+    print(f"  File:      {filepath}")
+    print("="*50 + "\n")
+
+    return f"{count} nuts grabbed"
 
 client_tools = ClientTools()
-client_tools.register("pick_object", pick_object, is_async=False)
+client_tools.register("grab_nuts", grab_nuts, is_async=False)
 
 elevenlabs = ElevenLabs(api_key=ELEVENLABS_API_KEY)
 
@@ -24,13 +40,13 @@ conversation = Conversation(
     client_tools=client_tools,
 )
 
-print("Starte Gespräch... sprich einfach los, z.B. 'heb das gelbe auf'. Strg+C zum Beenden.")
+print("Starting conversation... say e.g. 'grab 6 nuts'. Press Ctrl+C to stop.")
 conversation.start_session()
 
 try:
     while True:
         time.sleep(1)
 except KeyboardInterrupt:
-    print("\nBeende Gespräch...")
+    print("\nEnding conversation...")
     conversation.end_session()
     conversation.wait_for_session_end()
