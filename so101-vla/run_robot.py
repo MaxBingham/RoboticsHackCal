@@ -70,7 +70,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--max-relative-target",
         type=float,
         default=2.0,
-        help="Maximum commanded change per joint and control step, in degrees",
+        help="Maximum commanded change per joint and control step, in normalized units (full travel is 200)",
     )
     parser.add_argument(
         "--enable-motion",
@@ -126,7 +126,10 @@ def run(args: argparse.Namespace) -> None:
         cameras={args.camera_name: camera_config},
         max_relative_target=args.max_relative_target,
         disable_torque_on_disconnect=True,
-        use_degrees=True,
+        # lerobot/svla_so101_pickplace was recorded in RANGE_M100_100: its action
+        # stats saturate at exactly +/-100, which only the normalized path clamps to.
+        # Reading or writing degrees here would rescale every joint but the gripper.
+        use_degrees=False,
     )
     robot = SO101Follower(robot_config)
 

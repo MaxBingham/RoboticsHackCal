@@ -73,6 +73,18 @@ Use `--device=mps` on Apple Silicon or `--device=cuda` on an NVIDIA machine if
 auto-detection does not select the desired accelerator. The leader arm is not
 used during autonomous inference. Press Ctrl-C or cut follower power to stop.
 
+### Joint units
+
+The follower runs with `use_degrees=False`, so the five body joints are in
+LeRobot's normalized `RANGE_M100_100` and the gripper in `RANGE_0_100`. This
+matches how `lerobot/svla_so101_pickplace` was recorded — its action stats
+saturate at exactly ±100, which only the normalized path clamps to. Switching
+the follower to degrees rescales every body joint on both the state going in
+and the action coming out, and the arm reaches for the wrong place.
+
+`--max-relative-target` is therefore also in normalized units, where full joint
+travel is 200. The default of 2 caps each step at 1% of travel.
+
 ### Expected timing
 
 The policy plans 50 steps ahead, then blocks to replan. Measured on an M1 (CPU/MPS):
