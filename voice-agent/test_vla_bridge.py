@@ -1,16 +1,23 @@
+import os
 import unittest
+from unittest import mock
 
 from vla_bridge import JOINT_NAMES, ReadOnlyVLABridge, format_positions
 
 
 class ReadOnlyVLABridgeTest(unittest.TestCase):
+    @mock.patch.dict(os.environ, {"VLA_BACKEND": "mock"})
     def test_mock_returns_six_named_positions(self):
-        positions = ReadOnlyVLABridge().predict()
+        bridge = ReadOnlyVLABridge()
+        self.assertTrue(bridge.using_mock)
+
+        positions = bridge.predict()
 
         self.assertEqual(tuple(positions), JOINT_NAMES)
         self.assertEqual(list(positions.values()), [0.0] * 6)
         self.assertIn("gripper.pos=0.000", format_positions(positions))
 
+    @mock.patch.dict(os.environ, {"VLA_BACKEND": "mock"})
     def test_invalid_prediction_is_rejected(self):
         bridge = ReadOnlyVLABridge()
         bridge._predict_action = lambda: [0.0]

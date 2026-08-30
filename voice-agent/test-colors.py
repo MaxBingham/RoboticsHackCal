@@ -31,7 +31,7 @@ def grab_nuts(params):
     print("\n" + "="*50)
     print("  VLA READ-ONLY PREDICTION")
     print(f"  Voice count: {count}")
-    print(f"  Mode:        {'mock (training in progress)' if vla_bridge.using_mock else 'checkpoint'}")
+    print(f"  Backend:     {vla_bridge.backend}")
     print(f"  Positions:   {formatted_positions}")
     print(f"  Request log: {filepath}")
     print("="*50 + "\n")
@@ -51,8 +51,7 @@ conversation = Conversation(
     client_tools=client_tools,
 )
 
-mode = "mock" if vla_bridge.using_mock else "checkpoint"
-print(f"Starting conversation in {mode} read-only mode.")
+print(f"Starting conversation in {vla_bridge.backend} read-only mode.")
 print("Say e.g. 'grab 6 nuts'. The robot will not move. Press Ctrl+C to stop.")
 conversation.start_session()
 
