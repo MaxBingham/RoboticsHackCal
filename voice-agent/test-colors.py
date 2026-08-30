@@ -12,7 +12,11 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 vla_bridge = ReadOnlyVLABridge()
 
 def grab_nuts(params):
-    count = int(params.get("count"))
+    raw_count = params.get("counts", params.get("count", 1))
+    try:
+        count = int(float(raw_count))
+    except (TypeError, ValueError):
+        count = 1
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     filename = f"{count}_nuts_{timestamp}.txt"
     filepath = os.path.join(OUTPUT_DIR, filename)
@@ -39,6 +43,9 @@ def grab_nuts(params):
     return f"VLA prediction complete. Joint positions: {formatted_positions}"
 
 client_tools = ClientTools()
+# The ElevenLabs agent's tool is named "feed_me"; keep "grab_nuts" registered
+# too so either agent configuration triggers the same VLA prediction.
+client_tools.register("feed_me", grab_nuts, is_async=False)
 client_tools.register("grab_nuts", grab_nuts, is_async=False)
 
 elevenlabs = ElevenLabs(api_key=ELEVENLABS_API_KEY)
