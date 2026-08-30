@@ -12,6 +12,7 @@ the operator must type ``MOVE`` after the robot and camera connect.
 from __future__ import annotations
 
 import argparse
+import logging
 import math
 import time
 from pathlib import Path
@@ -23,6 +24,14 @@ from lerobot.robots.so_follower import SO101Follower, SO101FollowerConfig
 from vla import JOINT_NAMES, REPO, SmolVLA
 
 DEFAULT_INSTRUCTION = "pink lego brick into the transparent box"
+CLAMP_WARNING_PREFIX = "Relative goal position magnitude had to be clamped to be safe."
+
+
+class _ClampWarningFilter(logging.Filter):
+    """Hide LeRobot's per-tick clamp dump; the runner prints a compact summary."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not record.getMessage().startswith(CLAMP_WARNING_PREFIX)
 
 
 def camera_source(value: str) -> int | Path:
@@ -56,8 +65,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--robot-port", "--port", dest="robot_port", default="/dev/tty.usbmodem58CD1770011")
     parser.add_argument("--robot-id", "--id", dest="robot_id", default="hack_follower")
-    parser.add_argument("--camera", default="0", help="OpenCV camera index or device path")
-    parser.add_argument("--camera-name", default="front")
+    parser.add_argument("--camera", default="0", help="Primary/up OpenCV camera index or device path")
+    parser.add_argument("--camera-name", default="front", help="LeRobot key for the primary/up camera")
+    parser.add_argument(
+        "--side-camera",
+        default=None,
+        help="Optional second OpenCV camera. The primary frame is duplicated when omitted.",
+    )
+    parser.add_argument("--side-camera-name", default="side", help="LeRobot key for the optional side camera")
     parser.add_argument("--width", type=int, default=640)
     parser.add_argument("--height", type=int, default=480)
     parser.add_argument("--camera-fps", type=int, default=30)
@@ -87,6 +102,8 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError("--control-fps must be positive")
     if args.max_relative_target <= 0:
         raise ValueError("--max-relative-target must be positive")
+    if args.side_camera is not None and args.side_camera_name == args.camera_name:
+        raise ValueError("--side-camera-name must differ from --camera-name")
 
 
 def disconnect_safely(robot: SO101Follower) -> None:
@@ -114,34 +131,57 @@ def run(args: argparse.Namespace) -> None:
     vla = SmolVLA(repo=args.repo, device=args.device)
     print(f"Policy loaded on {vla.device}.")
 
-    camera_config = OpenCVCameraConfig(
-        index_or_path=camera_source(args.camera),
-        width=args.width,
-        height=args.height,
-        fps=args.camera_fps,
-    )
+    cameras = {
+        args.camera_name: OpenCVCameraConfig(
+            index_or_path=camera_source(args.camera),
+            width=args.width,
+            height=args.height,
+            fps=args.camera_fps,
+        )
+    }
+    if args.side_camera is not None:
+        cameras[args.side_camera_name] = OpenCVCameraConfig(
+            index_or_path=camera_source(args.side_camera),
+            width=args.width,
+            height=args.height,
+            fps=args.camera_fps,
+        )
+
     robot_config = SO101FollowerConfig(
         port=args.robot_port,
         id=args.robot_id,
-        cameras={args.camera_name: camera_config},
+        cameras=cameras,
         max_relative_target=args.max_relative_target,
         disable_torque_on_disconnect=True,
         use_degrees=True,
     )
     robot = SO101Follower(robot_config)
 
+    clamp_filter = _ClampWarningFilter()
+    root_logger = logging.getLogger()
+
     try:
-        print(f"Connecting follower on {args.robot_port} and camera {args.camera!r} ...")
+        camera_description = repr(args.camera)
+        if args.side_camera is not None:
+            camera_description += f" plus side camera {args.side_camera!r}"
+        print(f"Connecting follower on {args.robot_port} and camera {camera_description} ...")
         robot.connect()
         observation = robot.get_observation()
         state = state_from_observation(observation)
         image = observation[args.camera_name]
-        print(f"Connected. Camera frame: {image.shape}; joint state: {np.round(state, 2).tolist()}")
-        print(f"Instruction: {args.instruction}")
+        image_side = observation[args.side_camera_name] if args.side_camera is not None else image
         print(
-            "Compatibility warning: this checkpoint was trained with separate up/side cameras; "
-            "this integration test duplicates the front frame."
+            f"Connected. Primary frame: {image.shape}; side frame: {image_side.shape}; "
+            f"joint state: {np.round(state, 2).tolist()}"
         )
+        print(f"Instruction: {args.instruction}")
+        if args.side_camera is None:
+            print(
+                "Compatibility warning: this checkpoint was trained with separate up/side cameras; "
+                "this integration test duplicates the primary frame."
+            )
+        else:
+            print("Using separate primary/up and side camera frames.")
 
         if args.enable_motion:
             confirmation = input(
@@ -153,6 +193,9 @@ def run(args: argparse.Namespace) -> None:
         else:
             print("READ-ONLY mode: predictions will be printed but not sent to the arm.")
 
+        # LeRobot normally logs a multi-line warning for every clipped action.
+        # The applied action and a clipped flag are reported below instead.
+        root_logger.addFilter(clamp_filter)
         vla.reset()
         period_s = 1.0 / args.control_fps
         start = time.monotonic()
@@ -164,11 +207,12 @@ def run(args: argparse.Namespace) -> None:
             observation = robot.get_observation()
             state = state_from_observation(observation)
             image = observation[args.camera_name]
+            image_side = observation[args.side_camera_name] if args.side_camera is not None else image
 
             prediction_start = time.monotonic()
             action = vla.predict(
                 image=image,
-                image_side=image,
+                image_side=image_side,
                 state=state,
                 instruction=args.instruction,
             )
@@ -179,15 +223,24 @@ def run(args: argparse.Namespace) -> None:
             # consumed the requested run duration.
             if time.monotonic() - start >= args.duration:
                 break
+            applied_action = None
             if args.enable_motion:
-                robot.send_action(robot_action)
+                applied = robot.send_action(robot_action)
+                applied_action = np.asarray([applied[name] for name in JOINT_NAMES], dtype=np.float32)
 
             step += 1
             now = time.monotonic()
             if now >= next_status:
-                mode = "sent" if args.enable_motion else "predicted"
-                rounded = np.round(action, 2).tolist()
-                print(f"step={step:04d} {mode}={rounded} inference={inference_s:.3f}s")
+                requested = np.round(action, 2).tolist()
+                if applied_action is None:
+                    print(f"step={step:04d} predicted={requested} inference={inference_s:.3f}s")
+                else:
+                    applied = np.round(applied_action, 2).tolist()
+                    clipped = not np.allclose(action, applied_action, atol=1e-3)
+                    print(
+                        f"step={step:04d} requested={requested} applied={applied} "
+                        f"clipped={clipped} inference={inference_s:.3f}s"
+                    )
                 next_status = now + 1.0
 
             deadline += period_s
@@ -205,6 +258,7 @@ def run(args: argparse.Namespace) -> None:
     except KeyboardInterrupt:
         print("\nInterrupted by operator.")
     finally:
+        root_logger.removeFilter(clamp_filter)
         if robot.is_connected or robot.bus.is_connected or any(
             camera.is_connected for camera in robot.cameras.values()
         ):

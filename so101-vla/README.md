@@ -73,6 +73,24 @@ Use `--device=mps` on Apple Silicon or `--device=cuda` on an NVIDIA machine if
 auto-detection does not select the desired accelerator. The leader arm is not
 used during autonomous inference. Press Ctrl-C or cut follower power to stop.
 
+If two useful workspace cameras are available, pass the primary/overhead view
+with `--camera` and the second view with `--side-camera`:
+
+```bash
+python run_robot.py \
+  --robot-port=/dev/ttyACM1 \
+  --robot-id=hack_follower \
+  --camera=/dev/video0 \
+  --side-camera=/dev/video4 \
+  --device=cuda \
+  --duration=10
+```
+
+Both views must show the robot workspace. A laptop camera aimed at people and
+its infrared stream are not useful policy inputs. When motion is enabled, the
+runner prints both the model's `requested` target and the safety-limited
+`applied` command; `clipped=True` is expected while using a relative limit.
+
 ### Expected timing
 
 The policy plans 50 steps ahead, then blocks to replan. Measured on an M1 (CPU/MPS):
