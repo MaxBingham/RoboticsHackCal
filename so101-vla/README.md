@@ -73,6 +73,24 @@ Use `--device=mps` on Apple Silicon or `--device=cuda` on an NVIDIA machine if
 auto-detection does not select the desired accelerator. The leader arm is not
 used during autonomous inference. Press Ctrl-C or cut follower power to stop.
 
+If two useful workspace cameras are available, pass the primary/overhead view
+with `--camera` and the second view with `--side-camera`:
+
+```bash
+python run_robot.py \
+  --robot-port=/dev/ttyACM1 \
+  --robot-id=hack_follower \
+  --camera=/dev/video0 \
+  --side-camera=/dev/video4 \
+  --device=cuda \
+  --duration=10
+```
+
+Both views must show the robot workspace. A laptop camera aimed at people and
+its infrared stream are not useful policy inputs. When motion is enabled, the
+runner prints both the model's `requested` target and the safety-limited
+`applied` command; `clipped=True` is expected while using a relative limit.
+
 ### Joint units
 
 The follower runs with `use_degrees=False`, so the five body joints are in
@@ -84,6 +102,11 @@ and the action coming out, and the arm reaches for the wrong place.
 
 `--max-relative-target` is therefore also in normalized units, where full joint
 travel is 200. The default of 2 caps each step at 1% of travel.
+
+If you record your own dataset, keep the same convention: pass
+`--robot.use_degrees=false` to `lerobot-record`. A policy fine-tuned on
+degrees-valued data needs `use_degrees=True` here instead. The recorder and the
+runner must agree.
 
 ### Expected timing
 
