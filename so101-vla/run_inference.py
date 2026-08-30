@@ -14,7 +14,9 @@ import numpy as np
 
 from vla import JOINT_NAMES, SmolVLA
 
-INSTRUCTION = "Pick up the red cube and put it in the bowl."
+# The only task string in the checkpoint's training set. It saw no others,
+# so wording changes do not change behaviour.
+INSTRUCTION = "pink lego brick into the transparent box"
 
 
 def dummy_image(color=(200, 30, 30)) -> np.ndarray:
@@ -55,6 +57,16 @@ def main() -> None:
         print("  dim:", action.shape)
         print(f"  latency_s: {latencies[-1]:.3f}")
         print("  finite:", bool(np.isfinite(action).all()))
+
+    robot_obs = {
+        "up": image_up,
+        "side": image_side,
+        **{name: float(value) for name, value in zip(JOINT_NAMES, state)},
+    }
+    robot_action = vla.predict_from_robot(robot_obs, INSTRUCTION)
+    print("\nrobot.send_action payload:")
+    for name, value in robot_action.items():
+        print(f"  {name}: {value:.4f}")
 
     print("\n=== RESULT ===")
     print("instruction:", INSTRUCTION)

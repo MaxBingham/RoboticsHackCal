@@ -1,14 +1,11 @@
 """SmolVLA wrapper for offline SO-101 inference.
 
-Expected teammate call:
+Expected teammate call (raw LeRobot observation):
 
     vla = SmolVLA()
-    action = vla.predict(
-        image=image_up,          # HWC uint8 RGB (480, 640, 3) or CHW float [0, 1]
-        state=robot_state,       # (6,) joint positions
-        instruction="Pick up the red cube and put it in the bowl.",
-        image_side=image_side,   # required for real pick-place; defaults to `image` if omitted
-    )
+    vla.reset()
+    action = vla.predict_from_robot(robot.get_observation(), instruction)
+    robot.send_action(action)
 """
 
 from __future__ import annotations
@@ -147,3 +144,68 @@ class SmolVLA:
             action = self.policy.select_action(obs)
             action = self.postprocess(action)
         return _to_numpy_action(action)
+
+    def predict_from_robot(
+        self,
+        observation: dict,
+        instruction: str,
+        camera_map: dict[str, str] | None = None,
+    ) -> dict[str, float]:
+        """Drop-in for a LeRobot SO-101 loop.
+
+        Pass `robot.get_observation()` and send the result to `robot.send_action()`.
+        Camera keys default to `up` / `side`. If theirs are `front` / `wrist`:
+
+            camera_map={"up": "front", "side": "wrist"}
+        """
+        image_up, image_side = _images_from_robot_obs(observation, camera_map)
+        state = _state_from_robot_obs(observation)
+        action = self.predict(
+            image=image_up,
+            image_side=image_side,
+            state=state,
+            instruction=instruction,
+        )
+        return {name: float(action[i]) for i, name in enumerate(JOINT_NAMES)}
+
+
+def action_to_robot_dict(action: np.ndarray) -> dict[str, float]:
+    """Convert a (6,) action vector to `robot.send_action()` keys."""
+    flat = np.asarray(action, dtype=np.float32).reshape(-1)
+    if flat.size != 6:
+        raise ValueError(f"action must be 6-D, got {flat.shape}")
+    return {name: float(flat[i]) for i, name in enumerate(JOINT_NAMES)}
+
+
+def _images_from_robot_obs(
+    observation: dict,
+    camera_map: dict[str, str] | None,
+) -> tuple[Any, Any]:
+    aliases = {
+        "up": ("up", "front", "top", "overhead"),
+        "side": ("side", "wrist", "arm"),
+    }
+    if camera_map:
+        aliases = {
+            "up": (camera_map.get("up", "up"),),
+            "side": (camera_map.get("side", "side"),),
+        }
+
+    def pick(role: str):
+        for key in aliases[role]:
+            if key in observation:
+                return observation[key]
+        available = [k for k in observation if not str(k).endswith(".pos")]
+        raise KeyError(
+            f"No {role} camera in observation. Tried {aliases[role]}. "
+            f"Non-joint keys: {available}. Pass camera_map={{'up': '...', 'side': '...'}}."
+        )
+
+    return pick("up"), pick("side")
+
+
+def _state_from_robot_obs(observation: dict) -> np.ndarray:
+    missing = [name for name in JOINT_NAMES if name not in observation]
+    if missing:
+        raise KeyError(f"observation is missing joints {missing}")
+    return np.array([observation[name] for name in JOINT_NAMES], dtype=np.float32)
