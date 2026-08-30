@@ -1,0 +1,15 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Credentials — never commit these
+voice-agent/config.py
+*.env
+.env
+
+# Large data / model files
+*.tar.gz
+lerobot/outputs/
+*.pt
+*.safetensors
