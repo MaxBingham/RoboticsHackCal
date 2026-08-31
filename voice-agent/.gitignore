@@ -2,3 +2,5 @@ config.py
 __pycache__/
 *.pyc
 .venvs/
+grabbed_nuts_log/
+erkannte_farben/
