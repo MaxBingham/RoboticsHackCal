@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Feedbot</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@400;500;700;900&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --paper:#F6F7F4; --card:#FFFFFF; --ink:#212721; --muted:#5B655C;
+  --line:#D9DED4; --line-soft:#E7EBE3;
+  --ok:#2E6B40; --ok-bg:#E4EFE6;
+  --warn:#9A6210; --warn-bg:#F5ECDA;
+  --mono-bg:#EFF2EC;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#141713; --card:#1C201B; --ink:#E6EAE2; --muted:#9AA695;
+    --line:#343B32; --line-soft:#2A2F28;
+    --ok:#7CC48D; --ok-bg:#22371F;
+    --warn:#DBA84E; --warn-bg:#3A301A;
+    --mono-bg:#232823;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#141713; --card:#1C201B; --ink:#E6EAE2; --muted:#9AA695;
+  --line:#343B32; --line-soft:#2A2F28;
+  --ok:#7CC48D; --ok-bg:#22371F;
+  --warn:#DBA84E; --warn-bg:#3A301A;
+  --mono-bg:#232823;
+}
+*{box-sizing:border-box}
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:'Chivo',system-ui,-apple-system,sans-serif;
+  font-size:15px; line-height:1.55; margin:0; padding:32px 16px 56px;
+}
+.card{
+  max-width:880px; margin:0 auto; background:var(--card);
+  border:1px solid var(--line); border-radius:6px; overflow:hidden;
+}
+header{padding:30px 36px 24px; border-bottom:2px solid var(--ink)}
+.kicker{
+  font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11px;
+  letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:0 0 8px;
+}
+h1{font-size:30px; font-weight:900; margin:0 0 6px; letter-spacing:-.01em; text-wrap:balance}
+.sub{color:var(--muted); margin:0 0 16px; max-width:62ch}
+.chips{display:flex; gap:8px; flex-wrap:wrap}
+.chip{
+  font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11px; font-weight:500;
+  letter-spacing:.06em; padding:4px 10px; border-radius:3px;
+}
+.chip.ok{background:var(--ok-bg); color:var(--ok)}
+.chip.warn{background:var(--warn-bg); color:var(--warn)}
+.pipeline{
+  font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:12.5px; color:var(--muted);
+  background:var(--mono-bg); border-bottom:1px solid var(--line);
+  padding:12px 36px; overflow-x:auto; white-space:nowrap;
+}
+.pipeline b{color:var(--ink); font-weight:500}
+.pipeline .off{text-decoration:line-through; opacity:.55}
+section{padding:22px 36px; border-bottom:1px solid var(--line-soft)}
+section:last-of-type{border-bottom:none}
+h2{
+  font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11px; font-weight:500;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin:0 0 12px;
+}
+p{margin:0 0 10px; max-width:68ch}
+p:last-child{margin-bottom:0}
+ul{margin:0; padding-left:0; list-style:none; display:flex; flex-direction:column; gap:8px}
+li{padding-left:18px; position:relative; max-width:70ch}
+li::before{content:""; position:absolute; left:0; top:.62em; width:8px; height:2px; background:var(--muted)}
+li.warn::before{background:var(--warn)}
+li.warn strong{color:var(--warn)}
+strong{font-weight:700}
+.result{background:var(--ok-bg)}
+.result h2{color:var(--ok)}
+.claim{font-size:18px; font-weight:700; line-height:1.4; margin-bottom:10px; text-wrap:balance}
+.evidence{font-size:14px; color:var(--muted)}
+.evidence b{color:var(--ink); font-weight:500; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:12.5px}
+.cols{display:grid; grid-template-columns:1fr 1fr; gap:12px 32px}
+@media(max-width:640px){.cols{grid-template-columns:1fr}}
+table{border-collapse:collapse; width:100%; font-size:13.5px}
+th{
+  text-align:left; font-family:'IBM Plex Mono',ui-monospace,monospace; font-weight:500;
+  font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted);
+  padding:0 12px 6px 0; border-bottom:1px solid var(--line);
+}
+td{padding:7px 12px 7px 0; border-bottom:1px solid var(--line-soft); vertical-align:top}
+tr:last-child td{border-bottom:none}
+td:first-child{font-weight:700; white-space:nowrap}
+.stats{display:flex; gap:28px; flex-wrap:wrap; margin:14px 0 0}
+.stat{display:flex; flex-direction:column; gap:2px}
+.stat .n{font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:22px; font-weight:500; font-variant-numeric:tabular-nums}
+.stat .l{font-size:11.5px; color:var(--muted); letter-spacing:.04em; text-transform:uppercase}
+code{
+  font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:.88em;
+  background:var(--mono-bg); padding:1px 5px; border-radius:3px;
+}
+footer{
+  max-width:880px; margin:14px auto 0; font-family:'IBM Plex Mono',ui-monospace,monospace;
+  font-size:11px; color:var(--muted); text-align:right;
+}
+</style>
+</head>
+<body>
+<div class="card">
+  <header>
+    <p class="kicker">Build card · Robotics Hackathon at Cal · Aug 30–31, 2026</p>
+    <h1>Feedbot</h1>
+    <p class="sub">A robot arm that feeds you peanuts. Trained from zero in one weekend — we taught an SO-101 the motion by hand, then let it run on its own: it picks a peanut off the table and holds it up to your mouth, no human on the controls.</p>
+    <div class="chips">
+      <span class="chip ok">AUTONOMOUS HANDOFF · WORKING ON HARDWARE</span>
+      <span class="chip warn">VOICE INTEGRATION · UNFINISHED</span>
+    </div>
+  </header>
+
+  <div class="pipeline">
+    <span class="off">voice (ElevenLabs)</span> → <b>lerobot-rollout</b> → <b>ACT policy</b> → <b>SO-101 arm</b> → peanut handoff
+  </div>
+
+  <section>
+    <h2>What existed before the hackathon</h2>
+    <p><strong>Nothing project-specific — the team started from scratch.</strong> No prior code, datasets, or trained models. Everything preexisting was off-the-shelf: the SO-101 leader/follower arm kit, the open-source LeRobot library, public pretrained checkpoints, and the ElevenLabs API (all listed under External assets below).</p>
+  </section>
+
+  <section>
+    <h2>What the team added during the event</h2>
+    <ul>
+      <li><strong>Demonstration datasets</strong> — teleoperated peanut-handoff episodes recorded with the leader arm across multiple sessions (single robot-mounted camera, 640×480 @ 30 fps), iterated over three dataset versions plus a hand-cleaned variant.</li>
+      <li><strong>Two trained ACT policies</strong> — Action Chunking Transformers trained 20,000 steps each: one on the 29-episode v3 dataset, one on all 57 episodes combined.</li>
+      <li><strong>Hardware deployment</strong> — a working closed-loop rollout on the physical arm via <code>lerobot-rollout</code>, with tuned per-step safety limits.</li>
+      <li><strong>Voice-control stack (incomplete)</strong> — an ElevenLabs conversational agent with a locked-down tool interface: an approved-task allowlist, a hardware-launch bridge, and a spoken emergency stop.</li>
+      <li><strong>SmolVLA experiments</strong> — a single-camera adapter and joint-unit fix for a public pick-and-place checkpoint; abandoned after the self-trained ACT policy outperformed it.</li>
+      <li><strong>Encoder-pretraining experiment</strong> — a visual encoder trained on the World Context industrial video dataset with a weight-transfer script into SmolVLA; not carried into the final policy.</li>
+    </ul>
+    <div class="stats">
+      <div class="stat"><span class="n">57</span><span class="l">episodes recorded</span></div>
+      <div class="stat"><span class="n">21,705</span><span class="l">frames @ 30 fps</span></div>
+      <div class="stat"><span class="n">2</span><span class="l">trained checkpoints</span></div>
+      <div class="stat"><span class="n">20k</span><span class="l">training steps each</span></div>
+    </div>
+  </section>
+
+  <section class="result">
+    <h2>Central result</h2>
+    <p class="claim">An ACT policy trained only on the team's own demonstrations autonomously performs the peanut pickup-and-present task on the physical SO-101.</p>
+    <p class="evidence">Evidence: live hardware rollouts on Aug 30 using the <b>act_so101_nut_handoff_v3</b> checkpoint — the arm executes the pickup-and-present motion end to end with no teleoperation, with the per-step safety limiter engaging as designed. The exact verified command is committed to the repository README. Evidence is qualitative (observed successful runs); no quantitative success-rate evaluation was completed.</p>
+  </section>
+
+  <section>
+    <h2>Limitations, failures &amp; unfinished work</h2>
+    <ul>
+      <li class="warn"><strong>Voice integration unfinished.</strong> The ElevenLabs agent, tool allowlist, and emergency stop were built and the launch path was repaired, but a full voice-to-robot run was never completed at the event. Demo runs were launched from the command line.</li>
+      <li><strong>No quantitative evaluation</strong> — success is demonstrated by observed runs, not a measured success rate over repeated trials.</li>
+      <li><strong>Small dataset</strong> — 29–57 episodes with one camera; behavior is sensitive to starting pose and scene changes relative to the demonstrations.</li>
+      <li><strong>Cleaned dataset unused</strong> — a hand-filtered 28-episode v3 variant was prepared, but no checkpoint was retrained on it.</li>
+      <li><strong>SmolVLA path failed on this rig</strong> — the public two-camera checkpoint could not be made reliable on the one-camera setup and was dropped.</li>
+      <li><strong>Encoder-transfer experiment inconclusive</strong> — World Context pretraining was never benchmarked against the baseline.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>External code, models, datasets &amp; APIs</h2>
+    <div style="overflow-x:auto">
+    <table>
+      <thead><tr><th>Asset</th><th>Type</th><th>Used for</th></tr></thead>
+      <tbody>
+        <tr><td>LeRobot (Hugging Face)</td><td>Library</td><td>Recording, ACT training, hardware rollout; ACT architecture and ImageNet-pretrained ResNet18 backbone</td></tr>
+        <tr><td>SO-101 arm kit</td><td>Hardware</td><td>Leader arm for teleoperation, follower arm for execution</td></tr>
+        <tr><td>ElevenLabs Conversational AI</td><td>API</td><td>Voice agent, speech recognition/synthesis, client-tool calls</td></tr>
+        <tr><td>semi01/smolvla_official_so101_pickplace</td><td>Model</td><td>Public SmolVLA checkpoint for the abandoned VLA experiments</td></tr>
+        <tr><td>World Context Explorer V3</td><td>Dataset</td><td>Industrial egocentric video for the encoder-pretraining experiment</td></tr>
+        <tr><td>PyTorch · OpenCV · uv</td><td>Tooling</td><td>Training runtime, camera capture, environment management</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+</div>
+<footer>github.com/MaxBingham/RoboticsHackCal</footer>
+
+</body>
+</html>
