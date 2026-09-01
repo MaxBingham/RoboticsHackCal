@@ -36,7 +36,9 @@ When the user asks to feed, bring, hand over, or present a peanut:
 7. If the user says stop, cancel, emergency, or abort, immediately call stop_robot_task.
 8. Report the tool result clearly.
 
-The local robot controller performs an additional physical confirmation before movement. Do not claim that the task succeeded unless the tool reports success."""
+The local process must have been started explicitly with --enable-motion before
+it will accept a hardware tool call. Do not claim that the task succeeded unless
+the tool reports success."""
 
 # ── Client Tool Schemas ────────────────────────────────────────────────────────
 CLIENT_TOOLS = [

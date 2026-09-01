@@ -132,7 +132,7 @@ footer{
       <li><strong>Two trained ACT policies</strong> — Action Chunking Transformers trained 20,000 steps each: one on the 29-episode v3 dataset, one on all 57 episodes combined.</li>
       <li><strong>Hardware deployment</strong> — a working closed-loop rollout on the physical arm via <code>lerobot-rollout</code>, with tuned per-step safety limits.</li>
       <li><strong>Voice-control stack (incomplete)</strong> — an ElevenLabs conversational agent with a locked-down tool interface: an approved-task allowlist, a hardware-launch bridge, and a spoken emergency stop.</li>
-      <li><strong>SmolVLA experiments</strong> — a single-camera adapter and joint-unit fix for a public pick-and-place checkpoint; abandoned after the self-trained ACT policy outperformed it.</li>
+      <li><strong>SmolVLA experiments</strong> — a single-camera adapter and joint-unit fix for a public pick-and-place checkpoint; the team selected ACT after qualitatively more reliable runs, but did not complete a controlled comparison.</li>
       <li><strong>Encoder-pretraining experiment</strong> — a visual encoder trained on the World Context industrial video dataset with a weight-transfer script into SmolVLA; not carried into the final policy.</li>
     </ul>
     <div class="stats">

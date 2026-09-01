@@ -43,6 +43,14 @@ from elevenlabs.conversational_ai.default_audio_interface import DefaultAudioInt
 # Configuration
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 AGENT_ID = os.getenv("ELEVENLABS_AGENT_ID", "")
+DEFAULT_CHECKPOINT = os.getenv(
+    "FEEDBOT_CHECKPOINT",
+    str(
+        Path.home()
+        / "RoboticsHackCal/lerobot/outputs/train/act_so101_nut_handoff_v3"
+        / "checkpoints/last/pretrained_model"
+    ),
+)
 
 try:
     from config import ELEVENLABS_API_KEY as KEY_FROM_CONFIG, AGENT_ID as AGENT_FROM_CONFIG
@@ -60,10 +68,7 @@ TASKS = {
             "Pick up a peanut from the table and present it in front "
             "of the person's mouth without touching the person."
         ),
-        "checkpoint": (
-            "/home/gardlae/RoboticsHackCal/lerobot/outputs/train/"
-            "act_so101_nut_handoff_v3/checkpoints/last/pretrained_model"
-        ),
+        "checkpoint": DEFAULT_CHECKPOINT,
     }
 }
 
@@ -102,7 +107,7 @@ def run_robot_task(params: dict) -> dict[str, str]:
 
     task_info = TASKS[task_id]
     instruction = task_info["instruction"]
-    checkpoint = task_info["checkpoint"]
+    checkpoint = CLI_ARGS.checkpoint if CLI_ARGS else task_info["checkpoint"]
 
     print(f" Canonical Instruction: '{instruction}'")
     print(f" Checkpoint Target:     '{checkpoint}'")
@@ -195,6 +200,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="ElevenLabs Voice Interface for SO-101 Robot.")
     parser.add_argument("--dry-run", action="store_true", help="Run in voice-only testing mode without hardware")
     parser.add_argument("--camera", default="/dev/video4", help="Camera device path (e.g. /dev/video4)")
+    parser.add_argument(
+        "--checkpoint",
+        default=DEFAULT_CHECKPOINT,
+        help="Path to the trained ACT checkpoint (or set FEEDBOT_CHECKPOINT)",
+    )
     parser.add_argument("--duration", type=float, default=12.0, help="Episode rollout duration in seconds")
     parser.add_argument("--enable-motion", action="store_true", help="Enable physical robot motor execution")
     return parser
